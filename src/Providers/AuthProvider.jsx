@@ -1,14 +1,15 @@
 import { createContext, useEffect, useState } from "react";
-import { createUserWithEmailAndPassword, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { GoogleAuthProvider, createUserWithEmailAndPassword, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth";
 import app from "../Firebase/firebase.config";
 
 export const AuthContext = createContext()
-    const auth = getAuth(app)
-const AuthProvider = ({children}) => {
+const auth = getAuth(app)
+const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null)
     const [loading, setLoading] = useState(true)
+    const googleProvider = new GoogleAuthProvider()
 
-    const createUser = (email, password)=>{
+    const createUser = (email, password) => {
         setLoading(true)
         return createUserWithEmailAndPassword(auth, email, password)
     }
@@ -17,28 +18,55 @@ const AuthProvider = ({children}) => {
         setLoading(true)
         return signInWithEmailAndPassword(auth, email, password)
     }
-    
-    const logOut = () =>{
+
+    const googleSignIn = () => {
+        setLoading(true)
+        return signInWithPopup(auth, googleProvider)
+    }
+
+    const logOut = () => {
         setLoading(true)
         return signOut(auth)
     }
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, currentUser => {
-            setUser(currentUser)
+            setUser('current user in auth provider', currentUser)
             setLoading(false)
+            if (currentUser && currentUser.email) {
+                const loggedUser = {
+                    email: user.email
+                }
+                fetch('http://localhost:5000/jwt', {
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                    },
+                    body: JSON.stringify(loggedUser)
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log('jwt response', data)
+                        //Warning: Local storage is not the best way to store token(second best place) to store access token
+                        localStorage.setItem('car-token', data.token)
+                    })
+            }
+            else {
+                localStorage.removeItem('car-token')
+            }
         })
-        return () =>{
+        return () => {
             unsubscribe();
         }
-    },[])
+    }, [])
 
-    const authInfo ={
+    const authInfo = {
         user,
         loading,
         createUser,
         signIn,
-        logOut
+        googleSignIn,
+        logOut,
     }
     return (
         <AuthContext.Provider value={authInfo}>
